@@ -164,3 +164,159 @@ describe Resque::Pool, "when loading the pool configuration from a file" do
   end
 
 end
+
+describe Resque::Pool, "when config file has skroutz syntax only" do
+  subject { Resque::Pool.new('spec/resque-pool-skroutz.yml')  }
+
+  context "when RACK_ENV is set" do
+    before { ENV['RACK_ENV'] = 'development' }
+
+    it "fetches all the known queues (global ones plus the ones for the specific environment)" do
+      subject.all_known_queues.should == ["foo", "lala", "foo,bar", "baz", "koko"]
+    end
+
+    it "fetches the count of workers correctly" do
+      subject.config_get_worker_count("foo").should == 1
+      subject.config_get_worker_count("lala").should == 7
+      subject.config_get_worker_count("foo,bar").should == 4
+      subject.config_get_worker_count("baz").should == 23
+      subject.config_get_worker_count("koko").should == 1
+    end
+
+    it "recognizes if fork is enabled or not" do
+      subject.fork_enabled_for_queues?(["foo"]).should == true
+      subject.fork_enabled_for_queues?(["lala"]).should == false
+      subject.fork_enabled_for_queues?(["foo", "bar"]).should == true
+      subject.fork_enabled_for_queues?(["baz"]).should == true
+      subject.fork_enabled_for_queues?(["koko"]).should == false
+    end
+
+    it "creates forking workers if fork is enabled (forking is true by default)" do
+      worker_foo = subject.create_worker("foo")
+      worker_foo_bar = subject.create_worker("foo,bar")
+      worker_baz = subject.create_worker("baz")
+
+      worker_foo.fork_per_job?.should == true
+      worker_foo_bar.fork_per_job?.should == true
+      worker_baz.fork_per_job?.should == true
+    end
+
+    it "creates non forking workers if fork is not enabled" do
+      worker_lala = subject.create_worker("lala")
+      worker_koko = subject.create_worker("koko")
+
+      worker_lala.fork_per_job?.should == false
+      worker_koko.fork_per_job?.should == false
+    end
+  end
+
+  context "when RACK_ENV is not set" do
+    it "fetches all the known queues (only the global ones)" do
+      subject.all_known_queues.should == ["foo", "lala"]
+    end
+
+    it "loads keys which do not have an environment and fetches the count of workers correctly" do
+      subject.config_get_worker_count("foo").should == 1
+      subject.config_get_worker_count("lala").should == 7
+      subject.config_get_worker_count("foo,bar").should == 0
+      subject.config_get_worker_count("bar").should == 0
+    end
+
+    it "loads keys which do not have an enviroment and recognizes if fork is enabled or not" do
+      subject.fork_enabled_for_queues?(["foo"]).should == true
+      subject.fork_enabled_for_queues?(["lala"]).should == false
+      subject.fork_enabled_for_queues?(["foo", "bar"]).should == true
+      subject.fork_enabled_for_queues?(["bar"]).should == true
+    end
+
+    it "creates forking workers if fork is enabled" do
+      worker_foo = subject.create_worker("foo")
+
+      worker_foo.fork_per_job?.should == true
+    end
+
+    it "creates non forking workers if fork is not enabled" do
+      worker_foo = subject.create_worker("lala")
+
+      worker_foo.fork_per_job?.should == false
+    end
+  end
+end
+
+describe Resque::Pool, "when config file has mixed syntax" do
+  subject { Resque::Pool.new('spec/resque-pool-mixed.yml')  }
+
+  context "when RACK_ENV is set" do
+    before { ENV['RACK_ENV'] = 'development' }
+
+    it "fetches all the known queues (global ones plus the ones for the specific environment)" do
+      subject.all_known_queues.should == ["foo", "lala", "foo,bar", "baz", "koko"]
+    end
+
+    it "fetches the count of workers correctly" do
+      subject.config_get_worker_count("foo").should == 1
+      subject.config_get_worker_count("lala").should == 7
+      subject.config_get_worker_count("foo,bar").should == 4
+      subject.config_get_worker_count("baz").should == 23
+      subject.config_get_worker_count("koko").should == 1
+    end
+
+    it "recognizes if fork is enabled or not" do
+      subject.fork_enabled_for_queues?(["foo"]).should == true
+      subject.fork_enabled_for_queues?(["lala"]).should == false
+      subject.fork_enabled_for_queues?(["foo", "bar"]).should == true
+      subject.fork_enabled_for_queues?(["baz"]).should == true
+      subject.fork_enabled_for_queues?(["koko"]).should == false
+    end
+
+    it "creates forking workers if fork is enabled (forking is true by default)" do
+      worker_foo = subject.create_worker("foo")
+      worker_foo_bar = subject.create_worker("foo,bar")
+      worker_baz = subject.create_worker("baz")
+
+      worker_foo.fork_per_job?.should == true
+      worker_foo_bar.fork_per_job?.should == true
+      worker_baz.fork_per_job?.should == true
+    end
+
+    it "creates non forking workers if fork is not enabled" do
+      worker_lala = subject.create_worker("lala")
+      worker_koko = subject.create_worker("koko")
+
+      worker_lala.fork_per_job?.should == false
+      worker_koko.fork_per_job?.should == false
+    end
+  end
+
+  context "when RACK_ENV is not set" do
+    it "fetches all the known queues (only the global ones)" do
+      subject.all_known_queues.should == ["foo", "lala"]
+    end
+
+    it "loads keys which do not have an environment and fetches the count of workers correctly" do
+      subject.config_get_worker_count("foo").should == 1
+      subject.config_get_worker_count("lala").should == 7
+      subject.config_get_worker_count("foo,bar").should == 0
+      subject.config_get_worker_count("bar").should == 0
+    end
+
+    it "loads keys which do not have an enviroment and recognizes if fork is enabled or not" do
+      subject.fork_enabled_for_queues?(["foo"]).should == true
+      subject.fork_enabled_for_queues?(["lala"]).should == false
+      subject.fork_enabled_for_queues?(["foo", "bar"]).should == true
+      subject.fork_enabled_for_queues?(["bar"]).should == true
+    end
+
+    it "creates forking workers if fork is enabled" do
+      worker_foo = subject.create_worker("foo")
+
+      worker_foo.fork_per_job?.should == true
+    end
+
+    it "creates non forking workers if fork is not enabled" do
+      worker_foo = subject.create_worker("lala")
+
+      worker_foo.fork_per_job?.should == false
+    end
+  end
+end

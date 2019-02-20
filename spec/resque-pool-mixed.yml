@@ -1,0 +1,22 @@
+foo: 1
+
+lala:
+  - workers: 7
+  - fork_per_job: false
+
+production:
+  "foo,bar":
+    - workers: 10
+
+development:
+  "foo,bar": 4
+  "baz":
+    - workers: 23
+  "koko":
+    - workers: 1
+    - fork_per_job: false
+
+test:
+  "bar":
+    - workers: 5
+  "foo,bar": 3
