@@ -344,7 +344,63 @@ module Resque
     end
 
     def worker_delta_for(queues)
-      config.fetch(queues, 0) - workers.fetch(queues, []).size
+      config_get_worker_count(queues) - workers.fetch(queues, []).size
+    end
+
+    # Get the number of workers declared in the config file for queues
+    #
+    # @param queues [String] a given key/entry from the config file
+    # @return [Fixnum] If the queues parameter does not exist in the config file
+    # 0 is returned else the declared count of workers is returned.
+    #
+    # Example:
+    #   config_get_worker_count("foo,bar")
+    #   config_get_worker("baz")
+    def config_get_worker_count(queues)
+      return 0 unless config.has_key?(queues)
+
+      v = config[queues]
+
+      if v.is_a?(Fixnum)
+        return v
+      elsif v.is_a?(Array)
+        workers_entry = v.find { |entry| entry.has_key?('workers') }
+        return (workers_entry ? workers_entry['workers'] : 0)
+      end
+
+      return 0
+    end
+
+    # Check if certain queues should have their workers to fork or not
+    #
+    # NOTE: If you need to have dedicated non-forking workers for a queue then
+    # you need to correctly specify false into the `fork_per_job` key of your queue.
+    # An example can be found in the skroutz README.
+    #
+    # Default behavior is to fork in order to comply with resque since it's default
+    # behavior is also to fork unless specified otherwise (See the FORK_PER_JOB
+    # environment variable in resque).
+    #
+    # @param queues [Array<String>|String] the input queue/queues
+    # @return [Boolean] true if 'fork_per_job' is true or absent and
+    # false if 'fork_per_job' is declared as false
+    #
+    # Example:
+    # fork_enabled_for_queues?(["foo", "bar"])
+    # fork_enabled_for_queues?("foo,bar")
+    # fork_enabled_for_queues?("baz")
+    def fork_enabled_for_queues?(queues)
+      queues_key = queues.is_a?(Array) ? queues.join(',') : queues
+      return true unless config.has_key?(queues_key)
+
+      v = config[queues_key]
+
+      if v.is_a?(Array)
+        fork_entry = config[queues_key].find { |entry| entry.has_key?('fork_per_job') }
+        return (fork_entry ? !!fork_entry['fork_per_job'] : true)
+      end
+
+      true
     end
 
     def pids_for(queues)
@@ -368,6 +424,7 @@ module Resque
       worker = ::Resque::Worker.new(*queues)
       worker.verbose = ENV['LOGGING'] || ENV['VERBOSE']
       worker.very_verbose = ENV['VVERBOSE']
+      worker.fork_per_job = fork_enabled_for_queues?(queues)
       worker
     end
 
