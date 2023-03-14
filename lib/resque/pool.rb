@@ -350,7 +350,7 @@ module Resque
     # Get the number of workers declared in the config file for queues
     #
     # @param queues [String] a given key/entry from the config file
-    # @return [Fixnum] If the queues parameter does not exist in the config file
+    # @return [Integer] If the queues parameter does not exist in the config file
     # 0 is returned else the declared count of workers is returned.
     #
     # Example:
@@ -361,7 +361,7 @@ module Resque
 
       v = config[queues]
 
-      if v.is_a?(Fixnum)
+      if v.is_a?(Integer)
         return v
       elsif v.is_a?(Array)
         workers_entry = v.find { |entry| entry.has_key?('workers') }
