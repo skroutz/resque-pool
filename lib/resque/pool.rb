@@ -397,6 +397,61 @@ module Resque
       config.keys | workers.keys
     end
 
+    # Get the number of workers declared in the config file for queues
+    #
+    # Supports both upstream syntax (integer value) and extended syntax
+    # (array with workers key):
+    #
+    #   # upstream syntax
+    #   foo: 4
+    #
+    #   # extended syntax
+    #   foo:
+    #     - workers: 4
+    #     - fork_per_job: false
+    #
+    # @param queues [String] a given key/entry from the config file
+    # @return [Integer] the declared count of workers, or 0 if not found
+    def config_get_worker_count(queues)
+      return 0 unless config.has_key?(queues)
+
+      v = config[queues]
+
+      if v.is_a?(Integer)
+        return v
+      elsif v.is_a?(Array)
+        workers_entry = v.find { |entry| entry.is_a?(Hash) && entry.has_key?('workers') }
+        workers_count = workers_entry ? workers_entry['workers'] : 0
+        return workers_count.to_i
+      end
+
+      0
+    end
+
+    # Check if certain queues should have their workers fork per job
+    #
+    # Default behavior is to fork. Set fork_per_job: false in config to disable:
+    #
+    #   foo:
+    #     - workers: 4
+    #     - fork_per_job: false
+    #
+    # @param queues [Array<String>|String] the input queue/queues
+    # @return [Boolean] true if should fork (default), false if fork_per_job: false
+    def fork_enabled_for_queues?(queues)
+      queues_key = queues.is_a?(Array) ? queues.join(',') : queues
+      return true unless config.has_key?(queues_key)
+
+      v = config[queues_key]
+
+      if v.is_a?(Array)
+        fork_entry = v.find { |entry| entry.is_a?(Hash) && entry.has_key?('fork_per_job') }
+        return (fork_entry ? !!fork_entry['fork_per_job'] : true)
+      end
+
+      true
+    end
+
     # }}}
     # methods that operate on a single grouping of queues {{{
     # perhaps this means a class is waiting to be extracted
@@ -416,7 +471,7 @@ module Resque
     end
 
     def worker_delta_for(queues)
-      config.fetch(queues, 0) - workers.fetch(queues, []).size
+      config_get_worker_count(queues) - workers.fetch(queues, []).size
     end
 
     def pids_for(queues)
@@ -450,6 +505,7 @@ module Resque
       queues = queues.to_s.split(',')
       worker = ::Resque::Worker.new(*queues)
       worker.pool_master_pid = Process.pid
+      worker.fork_per_job = fork_enabled_for_queues?(queues)
       worker.term_timeout = (ENV['RESQUE_TERM_TIMEOUT'] || 4.0).to_f
       worker.term_child = ENV['TERM_CHILD']
       if worker.respond_to?(:run_at_exit_hooks=)
